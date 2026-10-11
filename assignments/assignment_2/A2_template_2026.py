@@ -476,8 +476,8 @@ def main() -> None:
         input_size * HIDDEN_SIZE
         + HIDDEN_SIZE * output_size
     )
-    console.log(f"controller inputs (len(data.qpos)) : {input_size}")
-    console.log(f"controller outputs (model.nu)      : {output_size}")
+    console.log(f"controller inputs : {input_size}")
+    console.log(f"controller outputs      : {output_size}")
     console.log(f"genotype length (total weights)    : {num_weights}")
     console.log(f"mutation stepsize mode             : {args.mutation}")
     console.log(f"seed                               : {args.seed}")
@@ -760,7 +760,7 @@ class EvolutionStategies:
     def random_population(self, population: Population) -> Population:
         
         new_population = [
-            self.make_individual() for _ in range(self.config.target_population_size)
+            self.make_individual() for _ in range(OFFSPRING_SIZE)
         ]
 
         # Kill previous generation
