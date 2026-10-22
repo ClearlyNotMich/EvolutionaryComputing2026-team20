@@ -28,7 +28,7 @@ ARIEL and the course materials remain upstream work. The [inherited ARIEL README
 With [uv](https://docs.astral.sh/uv/) installed, clone this fork:
 
 ```bash
-git clone https://github.com/ObviouslyNotMich/EvolutionaryComputing2026-team20.git
+git clone https://github.com/ClearlyNotMich/EvolutionaryComputing2026-team20.git
 cd EvolutionaryComputing2026-team20
 ```
 
