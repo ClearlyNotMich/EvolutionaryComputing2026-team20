@@ -29,8 +29,5 @@
     ],
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
-    "ruff.path": [
-        "/home/vscode/.local/bin/ruff"
-    ],
     "workbench.iconTheme": "material-icon-theme"
 }

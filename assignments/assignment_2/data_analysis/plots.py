@@ -1,8 +1,14 @@
 from pathlib import Path
-from typing import Literal
+from contextlib import closing
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
+
+
+def _open_readonly(db_path):
+    """Read existing run data without implicitly creating a missing database."""
+    path = Path(db_path).resolve(strict=True)
+    return sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
 
 
 #
@@ -92,7 +98,7 @@ def get_min_fitness(db_path):
         WHERE fitness_ IS NOT NULL
     """
     
-    with sqlite3.connect(db_path) as connection:
+    with closing(_open_readonly(db_path)) as connection:
         data = pd.read_sql_query(query, connection)
     
     if data.empty:
@@ -116,7 +122,7 @@ def get_max_fitness(db_path):
         WHERE fitness_ IS NOT NULL
     """
     
-    with sqlite3.connect(db_path) as connection:
+    with closing(_open_readonly(db_path)) as connection:
         data = pd.read_sql_query(query, connection)
     
     if data.empty:
@@ -140,7 +146,7 @@ def get_mean_fitness(db_path):
         WHERE fitness_ IS NOT NULL
     """
     
-    with sqlite3.connect(db_path) as connection:
+    with closing(_open_readonly(db_path)) as connection:
         data = pd.read_sql_query(query, connection)
     
     if data.empty:

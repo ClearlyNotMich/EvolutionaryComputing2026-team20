@@ -1,179 +1,52 @@
-![ariel-header](./docs/resources/ariel_logo.svg)
+# Evolutionary Computing — Team 20
 
-# ARIEL: Autonomous Robots through Integrated Evolution and Learning
+Master's coursework investigating **robot-body evolution** and **neural-controller evolution in simulation**, using Python, MuJoCo and the ARIEL framework. The repository contains the team's assignment implementations, saved experiment databases and analysis notebooks.
 
-[![Python](https://img.shields.io/badge/python-%E2%89%A53.12-blue.svg)](https://www.python.org/)
-[![MuJoCo](https://img.shields.io/badge/MuJoCo-%E2%89%A53.3.6-orange.svg)](https://mujoco.org/)
-[![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](./LICENSE)
-[![Docs](https://img.shields.io/badge/docs-ci--group.github.io%2Fariel-informational.svg)](https://ci-group.github.io/ariel/)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Status](https://img.shields.io/badge/status-beta-orange)](https://github.com/AndrzejSzczepura/EvolutionaryComputing2026)
+This is a collaborative course fork of [AndrzejSzczepura/EvolutionaryComputing2026](https://github.com/AndrzejSzczepura/EvolutionaryComputing2026), built on [ARIEL](https://github.com/ci-group/ariel) from the Computational Intelligence Group at Vrije Universiteit Amsterdam. The framework, course templates and team work are credited separately below.
 
-ARIEL is a research framework, developed by the [Computational Intelligence Group](https://cs.vu.nl/ci/) at the Vrije Universiteit Amsterdam, for the joint evolution and learning of modular robots in simulation.
+## Project contents
 
-This is the ARIEL fork for the Evolutionary Computing course, 2026 edition. Course assignment
-materials will be added into `/assignments` as the course progresses.
+| Area | Implementation | What it investigates |
+| --- | --- | --- |
+| Robot morphology | [Assignment 1](assignments/assignment_1/algorithm.py) | Tree-encoded bodies, subtree variation and selection; fitness combines mean and standard deviation of weighted tree-edit distance to five target bodies. |
+| Controller evolution | [Assignment 2](assignments/assignment_2/A2_template_2026.py) | Neural-network weights optimized with self-adaptive evolution strategies, single or per-weight mutation step sizes, recombination and offspring-only selection. Evaluations run in separate processes. |
+| Experiment analysis | [Analysis helpers](assignments/assignment_2/data_analysis/) and [notebooks](assignments/assignment_2/) | SQLite result aggregation, per-generation fitness summaries and plots. |
+| Supporting work | [Genotype-vector tests](tests/test_geno_vec.py) | Checks for the team's adaptation of ARIEL's dashboard representation. |
 
-## Overview
+The committed Assignment 2 archives contain **six per-weight-step-size runs**, for seeds `21`, `42`, `61`, `84`, `105` and `126`. They do not include the one-step-size and random-search archives referenced by the comparison notebook. Saved output is evidence of past runs, not a newly reproduced performance benchmark. See [results and reproduction limits](docs/TEAM20_REPRODUCIBILITY.md).
 
-**ARIEL** is a research framework for the evolution and learning of modular robots. It couples an evolutionary computation (EC) engine with a [MuJoCo](https://mujoco.org/)-based simulation stack, allowing robot *bodies* (morphologies) and *brains* (controllers) to be co-evolved and optimised within a single, consistent pipeline.
+## Contributions and upstream credit
 
-The framework is organised around a few core ideas:
+**Michal Kozdon** (`ObviouslyNotMich` in the existing Git history) contributed subtree-crossover work, survivor-selection refinements, dashboard genotype-vector support and tests, parallel evaluation work, result archives and analysis experiments. These contributions overlap with subsequent team revisions; they do not imply sole ownership of those components.
 
-- **Genotypes**: encodings that generate robot bodies and/or brains (tree genomes, CPPN/NEAT, and a Neural Developmental Encoding "NDE").
-- **Phenotypes**: the RoboGen-lite modular body construction system that turns a genotype into a buildable robot made of cores, bricks and hinges.
-- **Controllers**: neural and central-pattern-generator (CPG) controllers that drive the robot's joints.
-- **Simulation**: terrains/environments, tasks (locomotion, gait learning, turning) and a MuJoCo worker that evaluates an individual and reports its
-  fitness.
-- **EC engine**: reusable building blocks (populations, individuals, selection/crossover, archive) for assembling evolutionary algorithms.
-- **Visualisation**: dashboards and analysis tools for inspecting results.
+The history also records contributions under **Tim Gerling**, **TimG2805**, **Levien**, **levienb** and **Kelly**. Their work includes the evolutionary algorithms, controller inputs, mutation/recombination, result generation and analysis helpers. [Contribution notes](docs/TEAM20_PROVENANCE.md) link representative commits and explain the review baseline.
 
-## Features
+ARIEL and the course materials remain upstream work. The [inherited ARIEL README](README.upstream.md) is retained as a reference, including its author and citation information; its general framework examples are separate from the Team 20 workflow.
 
-- 🧠 **Body–brain co-optimisation**: 
-  - evolve / learn a controller for a fixed body
-  - evolve bodies and brains simultaneously
-  - evolve robot bodies and brains simultaneously augmented with lifetime learning.
-- 🤖 **Modular bodies**: Robot construction from cores, bricks and hinges, plus a library of prebuilt robots (gecko, spider, …).
-- 🧬 **Multiple genotypes**: tree genomes, CPPN/NEAT, and a Neural Developmental Encoding (NDE).
-- 🌍 **MuJoCo simulation**: ready-made terrains (flat, rugged, crater, tilted, Olympic arena) and tasks (targeted locomotion, gait learning,
-  turning in place).
-- 🔁 **Reusable EC engine**: composable populations, individuals, operators, and an archive, decoupled from the simulation layer.
-- 💾 **Built-in logging**: runs are persisted to a SQLite database for later analysis and replay.
-- 📊 **Visualisation**: dashboards and plotting utilities for results.
+## Start with the analysis checks
 
-## Documentation
-[ARIEL main documentation page](https://ci-group.github.io/ariel/)
+With [uv](https://docs.astral.sh/uv/) installed, clone this fork:
 
-## Quickstart
-
-After [installing](#installation-and-running), build a prebuilt robot, drop it into a world, and launch the MuJoCo viewer:
-
-```python
-import mujoco
-from mujoco import viewer
-
-from ariel.simulation.environments import SimpleFlatWorld
-from ariel.body_phenotypes.robogen_lite.prebuilt_robots.gecko import gecko
-
-# 1. Create a world (a flat terrain)
-world = SimpleFlatWorld()
-
-# 2. Build a modular robot body and spawn it into the world
-robot = gecko()                       # returns a CoreModule
-world.spawn(robot.spec, position=[0, 0, 0.1])
-
-# 3. Compile to a MuJoCo model + data
-model = world.spec.compile()
-data = mujoco.MjData(model)
-
-# 4. Watch it in the interactive viewer
-viewer.launch(model, data)
-```
-
-From here, see [`examples/`](examples/) for adding controllers, defining fitness, and running full evolutionary loops.
-
-## Requirements
-
-- **Python** ≥ 3.12
-- **MuJoCo** ≥ 3.3.6
-- **[uv](https://docs.astral.sh/uv/)** for environment and dependency management
-
-All Python dependencies are declared in [`pyproject.toml`](pyproject.toml) and are installed automatically by `uv sync`.
-
-## Installation and Running
-
-This project uses [uv](https://docs.astral.sh/uv/).
-
-To run the code examples, please do:
-1. Clone the repository
 ```bash
-git clone https://github.com/AndrzejSzczepura/EvolutionaryComputing2026.git
-cd EvolutionaryComputing2026
+git clone https://github.com/ObviouslyNotMich/EvolutionaryComputing2026-team20.git
+cd EvolutionaryComputing2026-team20
 ```
-2. Create a uv virtual environment inside the repository folder
+
+Run the focused database/plotting tests without installing the full robotics stack:
+
 ```bash
-  uv venv
-```
-3. Sync the virtual environment with the requirements
-```bash
-uv sync
-```
-4. Run an example, in this case, brain evolution (aka learning) using:
-```bash
-uv run examples/re_book/1_brain_evolution.py
+uv run --no-project --python 3.12 --with pytest==8.4.2 --with pandas==2.3.3 --with matplotlib==3.10.7 python -m pytest tests/test_assignment2_analysis.py -q
 ```
 
-## Repository Structure
+For the complete environment, use `uv sync --locked`. It follows `.python-version` and `uv.lock` and installs a substantial simulation, notebook and visualization dependency set. See the [run guide](docs/TEAM20_REPRODUCIBILITY.md) before launching an assignment: the entry points run full experiments, and output databases can otherwise be replaced by ARIEL's default behavior.
 
-```
-ariel/
-├── src/ariel/                      # Main package
-│   ├── body_phenotypes/            # Genotype → robot body construction
-│   │   ├── robogen_lite/           # RoboGen-lite modular body system
-│   │   │   ├── modules/            #   Body parts: core, brick, hinge
-│   │   │   ├── decoders/           #   Genotype-to-body decoders (hi-prob, CPPN, vector)
-│   │   │   ├── cppn_neat/          #   CPPN/NEAT genome implementation
-│   │   │   ├── prebuilt_robots/    #   Ready-made bodies (gecko, spider, ...)
-│   │   │   ├── constructor.py      #   Assembles modules into a MuJoCo spec
-│   │   │   └── config.py
-│   │   └── lynx_mjspec/            # Lynx robot arm body + evolve/replay pipeline
-│   ├── ec/                         # Evolutionary computation engine
-│   │   ├── genotypes/              #   Encodings: tree, cppn, nde (neural dev. encoding)
-│   │   ├── population.py           #   Population container
-│   │   ├── individual.py           #   Individual (genotype + fitness + state)
-│   │   ├── archive.py              #   Archive of historical individuals
-│   │   ├── crossover.py            #   Variation operators
-│   │   ├── generators.py           #   Genotype generators + mutators
-│   │   └── ea.py                   #   EA orchestration
-│   ├── simulation/                 # MuJoCo simulation stack
-│   │   ├── environments/           #   Terrains/worlds (flat, rugged, crater, arena, ...)
-│   │   ├── tasks/                  #   Tasks (targeted locomotion, gait, turning)
-│   │   ├── controllers/            #   Controllers (CPG variants, neural)
-│   │   └── mujoco_worker.py        #   Evaluates an individual, returns fitness
-│   ├── parameters/                 # Shared types, module defs, MuJoCo params
-│   ├── utils/                      # Renderers, trackers, video, optimizers, descriptors
-│   └── visualisation/              # Dashboards and analysis tooling
-├── examples/                       # Runnable examples
-│   ├── a_mujoco/                   #   MuJoCo basics (launcher, rendering, cameras)
-│   ├── b_robots/                   #   Building robots from graphs/decoders
-│   ├── c_genotypes/                #   Body/brain evolution with genotypes
-│   ├── re_book/                    #   "Robot Evolution" book walkthrough examples
-│   └── z_ec_course/                #   EC course assignment templates
-├── tests/                          # Unit and functional tests
-├── docs/                           # Sphinx documentation sources
-├── pyproject.toml                  # Project metadata and dependencies (uv)
-└── noxfile.py                      # Automation sessions (tests, docs, compiled build)
-```
+## Scope and limitations
 
-Simulation runs write output to a local `__data__/` directory (created on first run).
-
-## Examples
-
-The [`examples/`](examples/) folder is the best entry point for learning the framework. A good reading order is:
-
-1. [`examples/a_mujoco/`](examples/a_mujoco/): MuJoCo fundamentals: launching a simulation, rendering frames, recording video, and cameras.
-2. [`examples/b_robots/`](examples/b_robots/): turning genotypes/graphs into robot bodies and placing them on terrains.
-3. [`examples/re_book/`](examples/re_book/): end-to-end brain evolution, then body-brain evolution, learning, and waypoint-following tasks.
-4. [`examples/c_genotypes/`](examples/c_genotypes/): body/brain joint evolution, multiprocessing, and replaying results from a database.
-
-## Citation
-
-Papers about ARIEL have been accepted for publication at **ALIFE 2026** and **PPSN 2026**. Citation entries for those papers will be added here once they are published.
-
-In the meantime, if you use ARIEL in your research, please cite the repository:
-
-```bibtex
-@unpublished{ariel,
-    author = {Di Matteo, Jacopo Michele and Grigoriadis, Ioannis and Aron Richard Ferencz and Lilly Schwarzenbach and Agoston Eiben},
-    title  = {ARIEL: Autonomous Robots through Integrated Evolution and Learning},
-    year   = {2026},
-    note   = {https://github.com/ci-group/ariel}
-}
-```
-
-<!-- TODO: replace with the official ALIFE 2026 and PPSN 2026 citations once published. -->
+- This is simulation coursework; hardware deployment and benchmark superiority are not claimed.
+- The original notebooks expect local result folders and some archives that are absent from this snapshot. Their saved outputs should be interpreted with those limits.
+- Assignment 1's current `random_evolve()` evaluates its initial population but does not resample it in later generations. Its random-search baseline needs review before a new comparison is reported.
+- Generated code-search caches and the MuJoCo state dump are ignored and removed from the current tree. Experiment archives and all previous Git history are retained.
 
 ## License
 
-Distributed under the terms of the [GPL-3.0 license](LICENSE). ARIEL is free and open source software.
+The existing [LICENSE](LICENSE) states **GNU GPL version 3 or later** and credits Jacopo Michele di Matteo and Ioannis Grigoriadis for ARIEL. Its text and notices are preserved. This cleanup does not relicense upstream or team work. See [provenance](docs/TEAM20_PROVENANCE.md) for the distinction between the framework, teaching materials and team additions.

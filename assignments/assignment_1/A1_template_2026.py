@@ -2,11 +2,11 @@
 
 WHAT THIS FILE IS
 -----------------
-A *demo* file for starting you out with assignment 1. 
-It samples one body at random, decodes it, scores it
-against a set of target bodies, and shows you the result. 
-
-*Your Job* section at the bottom of this file summarises the programming task. Full assignment description can be found in the pdf file on Canvas.
+Team 20's entry point, adapted from the course template. It runs the
+Assignment1EA implementation in algorithm.py, then renders the best body.
+The checked-in defaults use 100 generations and a population of 75; this
+is a full experiment, not a single randomly sampled demonstration.
+See docs/TEAM20_REPRODUCIBILITY.md before running, especially output handling.
 
 
 THE ASSIGNMENT IN A NUTSHELL
@@ -140,7 +140,7 @@ def show_body(
 
 
 def main() -> None:
-    """Score one randomly-sampled body against the target set."""
+    """Evolve a body against the target set, then render the selected result."""
     targets = load_targets()
 
     console.log(
