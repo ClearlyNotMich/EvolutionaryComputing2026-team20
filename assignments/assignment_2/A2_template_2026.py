@@ -2,26 +2,25 @@
 
 WHAT THIS FILE IS
 -----------------
-A *demo*, not a solution. It spawns a robot, drives it with a neural network
-whose weights are RANDOM, runs the simulation, and reports how close the robot
-ended up to a target.
-
-There is deliberately NO evolution in here. Building the EA (representation,
-initialisation, parent selection, variation, survivor selection) is the assignment.
-See "YOUR JOB" at the bottom of this file.
+Team 20's implementation, adapted from the course template. It evolves a
+neural controller with self-adaptive evolution strategies, or runs a random
+search baseline, logs individuals to SQLite, then opens an interactive replay.
+The checked-in defaults run 150 generations; this is a full experiment.
 
 THE ASSIGNMENT IN A NUTSHELL
 ------------------------------
 Evolve the weights of a neural network controller so that a robot moves from
 SPAWN_POS to TARGET_POSITION within the simulation time.
 
-    fitness = distance between the robot's final position and TARGET_POSITION
+The current run_experiment() calls fitness_direct_path(), which includes
+distance to the target and path efficiency. Historical runs may use different
+fitness definitions; do not combine them without checking their provenance.
 
 HOW TO RUN
 ----------
 
-Change MODE below to switch between an interactive viewer, a headless run,
-a rendered video, or a single frame.
+See docs/TEAM20_REPRODUCIBILITY.md for setup, command-line options and output
+handling. Evaluations are headless; main() launches the viewer after the run.
 """
 
 # Standard library
@@ -449,7 +448,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 def main() -> None:
-    """Run a single demo evaluation with a randomly-weighted controller."""
+    """Run the configured search experiment, then replay its best controller."""
 
     args = parse_args()
 
@@ -510,12 +509,11 @@ def main() -> None:
 
 
 # ============================================================================ #
-#  YOUR JOB
+#  ORIGINAL COURSE GUIDANCE (the implementation follows below)
 # ============================================================================ #
 #
-# Everything above runs one robot with random weights. It will score badly, and
-# it will score badly in a slightly different way every time you change SEED.
-# Your task is to replace "random" with "evolved".
+# The original template evaluated random weights. Team 20's search
+# implementation is below; the experimental guidance remains relevant.
 #
 # Build a proper EA on top of `ariel.ec`. You are expected to use that module -
 # it gives you the population/individual data model, the operators, and free

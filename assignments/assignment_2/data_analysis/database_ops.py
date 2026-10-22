@@ -1,139 +1,127 @@
-from pathlib import Path
-from typing import Literal
-import sqlite3
-import pandas as pd
+"""Combine individual records without changing the source experiment databases."""
 
-#
-# Functions for merging databases
-#
+from contextlib import closing
+from pathlib import Path
+import sqlite3
+
 
 def quote_identifier(name):
     """Safely quote an SQLite table or column identifier."""
     return '"' + name.replace('"', '""') + '"'
 
 
+def _open_readonly(path):
+    """Open an existing database without SQLite's implicit file creation."""
+    return sqlite3.connect(Path(path).resolve(strict=True).as_uri() + "?mode=ro", uri=True)
+
+
+def _individual_schema(connection, source_path):
+    schema_row = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'individual'"
+    ).fetchone()
+    if schema_row is None:
+        raise ValueError(f"No table named 'individual' was found in {source_path}")
+
+    # cid, name, declared type, not-null, default, primary-key position, hidden.
+    info = connection.execute("PRAGMA table_xinfo(individual)").fetchall()
+    primary_keys = [column for column in info if column[5]]
+    primary_key_indexes = [
+        index for index in connection.execute("PRAGMA index_list(individual)")
+        if index[3] == "pk"
+    ]
+    if (
+        len(primary_keys) != 1
+        or primary_keys[0][2].strip().upper() != "INTEGER"
+        or primary_key_indexes
+    ):
+        raise ValueError(
+            f"{source_path}: individual needs a single INTEGER rowid primary key "
+            "so new IDs can be assigned safely"
+        )
+    if any(column[6] for column in info):
+        raise ValueError(f"{source_path}: generated or hidden columns are not supported")
+    if any(column[1].casefold() == "source_db" for column in info):
+        raise ValueError(f"{source_path}: individual already contains a source_db column")
+
+    columns = [column[1] for column in info if not column[5]]
+    if not columns:
+        raise ValueError("No copyable columns were found in individual")
+    signature = [
+        (column[1], column[2].strip().upper(), column[3], column[4], column[5])
+        for column in info
+    ]
+    return schema_row[0], signature, columns
+
+
 def merge_individual_databases(source_paths, target_path):
-    """
-    Merge `individual` tables from several SQLite databases into one database.
+    """Merge compatible individual tables into a new SQLite database.
 
-    A `source_db` column is added to the merged table to preserve the original
-    run/database name. Integer primary-key values are not copied, so SQLite
-    assigns unique new IDs in the combined database.
+    Sources are opened read-only. The output receives fresh integer IDs and a
+    source_db column containing each input filename, as in the original API.
+    Only the individual table is copied, not other tables, triggers or indexes.
 
-    Parameters
-    ----------
-    source_paths : list[str | Path]
-        Paths to the input .db files.
-    target_path : str | Path
-        Path for the newly created combined database.
+    An existing target is never overwritten. All inserts share one transaction;
+    a failed merge rolls back and removes only the output file created by this
+    call. Missing inputs, incompatible schemas and write failures raise errors.
     """
-    source_paths = [Path(path) for path in source_paths]
+    source_paths = [Path(path).resolve(strict=True) for path in source_paths]
     target_path = Path(target_path)
-
     if not source_paths:
         raise ValueError("No source databases were supplied.")
+    if target_path.exists() or target_path.is_symlink():
+        raise FileExistsError(f"Target database already exists: {target_path}")
 
-    if target_path.exists():
-        print(f"File {target_path} already exists")
-        return
-
-    # Obtain the individual-table schema from the first database.
-    with sqlite3.connect(source_paths[0]) as source_connection:
-        schema_row = source_connection.execute("""
-            SELECT sql
-            FROM sqlite_master
-            WHERE type = 'table' AND name = 'individual'
-        """).fetchone()
-
-        if schema_row is None:
-            raise ValueError(
-                f"No table named 'individual' was found in {source_paths[0]}"
-            )
-
-        create_individual_sql = schema_row[0]
-
-        # Columns: cid, name, type, notnull, default_value, pk
-        table_info = source_connection.execute(
-            "PRAGMA table_info(individual)"
-        ).fetchall()
-
-    # Do not copy an INTEGER PRIMARY KEY. This prevents ID collisions between
-    # separate source databases; SQLite creates a fresh ID on insertion.
-    columns_to_copy = []
-
-    for _, column_name, column_type, _, _, is_primary_key in table_info:
-        is_integer_primary_key = (
-            is_primary_key > 0
-            and "INT" in (column_type or "").upper()
+    with closing(_open_readonly(source_paths[0])) as source_connection:
+        create_sql, expected_schema, columns = _individual_schema(
+            source_connection, source_paths[0]
         )
 
-        if not is_integer_primary_key:
-            columns_to_copy.append(column_name)
-
-    if not columns_to_copy:
-        raise ValueError("No copyable columns were found in `individual`.")
-
-    quoted_columns = ", ".join(
-        quote_identifier(column)
-        for column in columns_to_copy
+    quoted_columns = ", ".join(quote_identifier(column) for column in columns)
+    placeholders = ", ".join("?" for _ in range(len(columns) + 1))
+    insert_sql = (
+        f"INSERT INTO individual ({quoted_columns}, source_db) "
+        f"VALUES ({placeholders})"
     )
 
-    with sqlite3.connect(target_path) as target_connection:
-        # Wait for up to five seconds if a temporary SQLite lock occurs.
-        target_connection.execute("PRAGMA busy_timeout = 5000")
-
-        # Set up the target database.
-        target_connection.execute(create_individual_sql)
-
-        target_connection.execute("""
-            ALTER TABLE individual
-            ADD COLUMN source_db TEXT
-        """)
-
-        # Commit schema changes before attaching source databases.
-        target_connection.commit()
-
-        for index, source_path in enumerate(source_paths):
-            alias = f"source_{index}"
-
-            target_connection.execute(
-                f"ATTACH DATABASE ? AS {quote_identifier(alias)}",
-                (str(source_path),)
-            )
-
-            try:
-                # Verify that this source has all expected columns.
-                source_columns = {
-                    row[1]
-                    for row in target_connection.execute(
-                        f"PRAGMA {quote_identifier(alias)}.table_info(individual)"
-                    )
-                }
-
-                missing_columns = set(columns_to_copy) - source_columns
-
-                if missing_columns:
-                    raise ValueError(
-                        f"{source_path} is missing columns: "
-                        f"{sorted(missing_columns)}"
-                    )
-
-                # Copy individuals. Their original integer primary-key IDs are
-                # deliberately omitted, preventing collisions across databases.
-                target_connection.execute(f"""
-                    INSERT INTO individual ({quoted_columns}, source_db)
-                    SELECT {quoted_columns}, ?
-                    FROM {quote_identifier(alias)}.individual
-                """, (source_path.name,))
-
-                # A commit is required before DETACH DATABASE.
-                target_connection.commit()
-
-            finally:
+    # Exclusive creation also refuses an output that appeared after the check.
+    with target_path.open("xb"):
+        pass
+    created_stat = target_path.stat()
+    created_identity = (created_stat.st_dev, created_stat.st_ino)
+    try:
+        with closing(sqlite3.connect(target_path)) as target_connection:
+            target_connection.execute("PRAGMA busy_timeout = 5000")
+            with target_connection:
+                # Explicit BEGIN includes DDL in the same rollback boundary.
+                target_connection.execute("BEGIN")
+                target_connection.execute(create_sql)
                 target_connection.execute(
-                    f"DETACH DATABASE {quote_identifier(alias)}"
+                    "ALTER TABLE individual ADD COLUMN source_db TEXT"
                 )
-
-        target_connection.commit()
+                for source_path in source_paths:
+                    with closing(_open_readonly(source_path)) as source_connection:
+                        _, schema, _ = _individual_schema(source_connection, source_path)
+                        if schema != expected_schema:
+                            raise ValueError(
+                                f"Incompatible individual schema in {source_path}"
+                            )
+                        rows = source_connection.execute(
+                            f"SELECT {quoted_columns} FROM individual ORDER BY rowid"
+                        )
+                        target_connection.executemany(
+                            insert_sql,
+                            (tuple(row) + (source_path.name,) for row in rows),
+                        )
+    except BaseException:
+        # Do not remove a pre-existing file or a replacement made by another
+        # process while the merge was running.
+        try:
+            current_stat = target_path.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            if (current_stat.st_dev, current_stat.st_ino) == created_identity:
+                target_path.unlink()
+        raise
 
     print(f"Merged {len(source_paths)} databases into: {target_path}")

@@ -1,6 +1,9 @@
 ### PROJECT #####################################################################
 /.ai/
 /.pi/
+# Generated local code-search caches and MuJoCo state dumps.
+/.codebase-index/
+/MJDATA.TXT
 # Videos
 *.mp4
 # Dirs
